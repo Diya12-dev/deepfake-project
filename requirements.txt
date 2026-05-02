@@ -1,6 +1,2 @@
 streamlit
-streamlit
-numpy
 matplotlib
-mediapipe
-imageio
