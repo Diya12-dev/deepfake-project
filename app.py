@@ -1,18 +1,16 @@
 import streamlit as st
 import numpy as np
 import tempfile
-import random
 import matplotlib.pyplot as plt
 import mediapipe as mp
-from PIL import Image
 import imageio.v2 as imageio
 
 st.set_page_config(page_title="Deepfake Detector", layout="centered")
 
-st.title("🎬 Deepfake Detection (Stable Cloud Version)")
-st.write("Upload Video for Analysis")
+st.title("🎬 Deepfake Detection (Stable Version)")
+st.write("Upload short video (5–10 sec recommended)")
 
-uploaded_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
+uploaded_file = st.file_uploader("Upload Video", type=["mp4"])
 
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False)
@@ -21,7 +19,6 @@ if uploaded_file is not None:
 
     st.video(uploaded_file)
 
-    # Save video
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
 
@@ -30,27 +27,22 @@ if uploaded_file is not None:
     movement_scores = []
     prev_landmarks = None
 
-    frame_count = 0
+    frame_limit = 30   # 🚨 VERY IMPORTANT (limit frames)
 
-    for frame in reader:
-        frame_count += 1
+    for i, frame in enumerate(reader):
 
-        if frame_count % 5 != 0:
+        if i > frame_limit:
+            break
+
+        if i % 3 != 0:
             continue
 
-        rgb = frame
-
-        results = face_mesh.process(rgb)
+        results = face_mesh.process(frame)
 
         if results.multi_face_landmarks:
             landmarks = results.multi_face_landmarks[0]
 
-            current_points = []
-
-            for lm in landmarks.landmark:
-                current_points.append([lm.x, lm.y])
-
-            current_points = np.array(current_points)
+            current_points = np.array([[lm.x, lm.y] for lm in landmarks.landmark])
 
             if prev_landmarks is not None:
                 diff = np.linalg.norm(current_points - prev_landmarks)
@@ -58,30 +50,25 @@ if uploaded_file is not None:
 
             prev_landmarks = current_points
 
-    # ---------------- RESULT ----------------
+    # ---------- RESULT ----------
     if len(movement_scores) > 0:
-        avg_movement = np.mean(movement_scores)
+        avg = np.mean(movement_scores)
 
-        if avg_movement < 0.02:
+        if avg < 0.02:
             result = "Fake 😨"
         else:
             result = "Real 😊"
-
-        confidence = round(random.uniform(80, 95), 2)
-
     else:
         result = "No Face Detected"
-        confidence = 0
 
     st.subheader("Result")
     st.success(result)
-    st.write(f"Confidence: {confidence}%")
 
-    # ---------------- GRAPH ----------------
+    # ---------- GRAPH ----------
     st.subheader("Movement Graph")
 
     fig, ax = plt.subplots()
     ax.plot(movement_scores)
-    ax.set_title("Facial Movement Over Frames")
+    ax.set_title("Frame Movement")
 
     st.pyplot(fig)
